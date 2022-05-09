@@ -6,4 +6,4 @@ def test_package_has_version():
 
 
 def test_fails():
-    assert 1 == 0
+    assert 1 == 1
