@@ -4,6 +4,7 @@
 
 # Compiled files
 __pycache__/
+.ipynb_checkpoints/
 
 # Distribution / packaging
 /build/
@@ -22,3 +23,7 @@ __pycache__/
 # IDEs
 /.idea/
 /.vscode/
+
+# data
+!neural_ot/data/
+neural_ot/data/*/

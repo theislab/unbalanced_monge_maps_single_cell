@@ -1,0 +1,22 @@
+name: sc-preprocessing
+channels:
+    - conda-forge
+    - bioconda
+dependencies:
+    - python
+    - cmake
+    - pandas
+    - numpy
+    - scipy
+    - scikit-learn
+    - scikit-misc
+    - jupyter
+    - h5py
+    - tqdm
+    - numba
+    - pytables
+    - seaborn
+    - louvain
+    - anndata
+    - scanpy
+    - scvelo

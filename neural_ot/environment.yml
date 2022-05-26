@@ -1,0 +1,23 @@
+name: neural-ot
+channels:
+    - pytorch
+    - conda-forge
+    - bioconda
+dependencies:
+    - python
+    - cmake
+    - numpy
+    - pandas
+    - scipy
+    - pytorch
+    - jax
+    - flax
+    - optax
+    - h5py
+    - numba
+    - anndata
+    - scanpy
+    - jupyter
+    - pip
+    - pip:
+          - ott-jax
