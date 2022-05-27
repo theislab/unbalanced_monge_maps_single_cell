@@ -1,6 +1,5 @@
 from typing import Iterator
 
-import jax.numpy as jnp
 import numpy as np
 from torch.utils.data import IterableDataset
 
@@ -25,8 +24,8 @@ class GaussianMixtureDataset(IterableDataset):
     def __len__(self) -> int:
         return self.n_samples
 
-    def __iter__(self) -> Iterator[jnp.ndarray]:
+    def __iter__(self) -> Iterator[np.ndarray]:
         while True:
             center = self.centers[np.random.choice(len(self.centers))]
             u = np.random.normal(loc=0, scale=1, size=self.input_dim)
-            yield jnp.array(center + np.dot(self.cholesky_l, u))
+            yield center + np.dot(self.cholesky_l, u)

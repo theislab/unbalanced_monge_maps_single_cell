@@ -1,7 +1,6 @@
 from typing import Iterator
 
 import anndata
-import jax.numpy as jnp
 import numpy as np
 import scanpy as sc
 from torch.utils.data import IterableDataset
@@ -21,8 +20,6 @@ class AnnDataset(IterableDataset):
     def __len__(self) -> int:
         return len(self.adata)
 
-    def __iter__(self) -> Iterator[jnp.ndarray]:
+    def __iter__(self) -> Iterator[np.ndarray]:
         while True:
-            yield jnp.array(
-                self.adata[np.random.choice(self.__len__())].X.toarray().squeeze()
-            )
+            yield self.adata[np.random.choice(self.__len__())].X.toarray().squeeze()
