@@ -172,8 +172,9 @@ class NeuralDualSolver:
                 grads_f_accumulated = jax.jit(jax.grad(lambda _: 0.0))(self.neural_dual.state_f.params)
 
                 for source in trainloader_source:
-                    # get train batch for potential g
+                    # get train batch from target distribution
                     batch["source"] = jnp.array(source)
+                    # train step for potential g
                     (
                         self.neural_dual.state_g,
                         grads_f,
@@ -191,7 +192,9 @@ class NeuralDualSolver:
                     # because f is the dual potential, we need to subtract the gradients of f
                     grads_f_accumulated = subtract_pytrees(grads_f_accumulated, grads_f)
 
+                # update potential f with accumulated gradients
                 self.neural_dual.state_f = self.neural_dual.state_f.apply_gradients(grads=grads_f_accumulated)
+                # clip weights of f
                 self.neural_dual.state_f = self.neural_dual.state_f.replace(
                     params=self.clip_weights_icnn(self.neural_dual.state_f.params)
                 )
@@ -215,6 +218,7 @@ class NeuralDualSolver:
             # evalute on validation set periodically
             if step != 0 and step % self.valid_freq == 0:
                 self.eval_step(validloader_source, validloader_target, "val")
+        # evaluate on test set
         self.eval_step(testloader_source, testloader_target, "test")
 
     def get_train_step(self):
@@ -278,7 +282,6 @@ class NeuralDualSolver:
     @jax.jit
     def eval_step(self, source_loader: DataLoader, target_loader: DataLoader, split: str = "val"):
         """Create a one-step training and evaluation function."""
-        # get batch
         source = []
         target = []
         pred_target = []
