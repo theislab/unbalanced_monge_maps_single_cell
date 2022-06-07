@@ -222,11 +222,11 @@ class NeuralDualSolver:
 
             # evalute on validation set periodically
             if step != 0 and step % self.valid_freq == 0:
-                self.eval_step(validloader_source, validloader_target, "val")
+                self.eval_step(validloader_source, validloader_target, split="val", step=step)
         # evaluate on test set
-        self.eval_step(testloader_source, testloader_target, "test")
+        self.eval_step(testloader_source, testloader_target, split="test")
         if self.save_ckpt:
-            self.save_checkpoint("last")
+            self.save_checkpoint("last", step=step)
 
     def get_train_step(self):
         """Get the training step."""
@@ -287,7 +287,13 @@ class NeuralDualSolver:
         return step_fn
 
     @jax.jit
-    def eval_step(self, source_loader: DataLoader, target_loader: DataLoader, split: str = "val"):
+    def eval_step(
+        self,
+        source_loader: DataLoader,
+        target_loader: DataLoader,
+        split: str = "val",
+        step: int = None,
+    ):
         """Create a one-step training and evaluation function."""
         source = []
         target = []
@@ -324,7 +330,7 @@ class NeuralDualSolver:
         if split == "val" and total_sink_loss < self.best_sink_dist:
             self.best_sink_dist = total_sink_loss
             if self.save_ckpt:
-                self.save_checkpoint("best")
+                self.save_checkpoint("best", step=step)
 
         # log to wandb
         if self.logging:
