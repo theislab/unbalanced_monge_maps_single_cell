@@ -1,2 +1,2 @@
 from .anndataset import AnnDataset
-from .guassian_mixture import GaussianMixtureDataset
+from .gaussian_mixture import GaussianMixtureDataset
