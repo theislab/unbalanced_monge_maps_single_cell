@@ -23,7 +23,7 @@ import jax.numpy as jnp
 import optax
 import wandb
 from flax.core import freeze
-from flax.training import train_state
+from flax.training import checkpoints, train_state
 from optax._src import base
 from ott.core import icnn
 from torch.utils.data import DataLoader
@@ -71,6 +71,8 @@ class NeuralDualSolver:
         seed: int = 0,
         pos_weights: bool = False,
         beta: int = 1.0,
+        save_ckpt: bool = True,
+        ckpt_dir: str = "checkpoints/run_one",
     ):
         self.epochs = epochs
         self.valid_freq = valid_freq
@@ -78,6 +80,8 @@ class NeuralDualSolver:
         self.logging = logging
         self.pos_weights = pos_weights
         self.beta = beta
+        self.save_ckpt = save_ckpt
+        self.ckpt_dir = ckpt_dir
 
         # set random key
         rng = jax.random.PRNGKey(seed)
@@ -158,6 +162,7 @@ class NeuralDualSolver:
 
         # set sink dist dictionaries (only needs to be computed once for each split)
         self.sink_dist = {"val": None, "test": None}
+        self.best_sink_loss = 1e8
 
         for step in tqdm(range(self.epochs)):
             # execute training steps
@@ -220,6 +225,8 @@ class NeuralDualSolver:
                 self.eval_step(validloader_source, validloader_target, "val")
         # evaluate on test set
         self.eval_step(testloader_source, testloader_target, "test")
+        if self.save_ckpt:
+            self.save_checkpoint("last")
 
     def get_train_step(self):
         """Get the training step."""
@@ -312,6 +319,13 @@ class NeuralDualSolver:
             wandb.log({f"{split}_sink_dist": self.sink_dist[split]})
         neural_dual_dist = self.neural_dual.distance(source, target)
 
+        # update best model if necessary
+        total_sink_loss = sink_loss_forward + sink_loss_inverse
+        if split == "val" and total_sink_loss < self.best_sink_dist:
+            self.best_sink_dist = total_sink_loss
+            if self.save_ckpt:
+                self.save_checkpoint("best")
+
         # log to wandb
         if self.logging:
             wandb.log(
@@ -343,6 +357,11 @@ class NeuralDualSolver:
             if k.startswith("w_z"):
                 penalty += jnp.linalg.norm(jax.nn.relu(-params[k]["kernel"]))
         return penalty
+
+    def save_checkpoint(self, ckpt_name: str):
+        """Save checkpoint."""
+        checkpoints.save_checkpoint(f"{self.ckpt_dir}/{ckpt_name}/neural_f", self.neural_dual.state_f.params)
+        checkpoints.save_checkpoint(f"{self.ckpt_dir}/{ckpt_name}/neural_g", self.neural_dual.state_f.params)
 
 
 @jax.tree_util.register_pytree_node_class
