@@ -9,6 +9,7 @@ dependencies:
     - numpy
     - pandas
     - scipy
+    - cudatoolkit-dev
     - pytorch
     - jax
     - flax
@@ -18,6 +19,8 @@ dependencies:
     - anndata
     - scanpy
     - jupyter
+    - tensorflow
+    - wandb
     - pip
     - pip:
           - ott-jax
