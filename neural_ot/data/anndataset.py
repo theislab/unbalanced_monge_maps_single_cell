@@ -20,7 +20,7 @@ class AnnDataset(Dataset):
         # split data
         indices = np.arange(self.__len__())
         rng.shuffle(indices)
-        train_indeces = indices[int(np.round(len(self.adata) * 0.8)) :]
+        train_indeces = indices[: int(np.round(len(self.adata) * 0.8))]
         val_indeces = indices[int(np.round(len(self.adata) * 0.8)) : int(np.round(len(self.adata) * 0.9))]
         test_indices = indices[int(np.round(len(self.adata) * 0.9)) :]
         # testing

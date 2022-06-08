@@ -27,7 +27,7 @@ class GaussianMixtureDataset(Dataset):
         # split data
         indices = np.arange(len(self.data))
         rng.shuffle(indices)
-        train_indeces = indices[int(np.round(len(self.data) * 0.8)) :]
+        train_indeces = indices[: int(np.round(len(self.data) * 0.8))]
         val_indeces = indices[int(np.round(len(self.data) * 0.8)) : int(np.round(len(self.data) * 0.9))]
         test_indices = indices[int(np.round(len(self.data) * 0.9)) :]
         match split:
