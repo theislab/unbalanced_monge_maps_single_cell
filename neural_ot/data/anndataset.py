@@ -23,6 +23,7 @@ class AnnDataset(Dataset):
         train_indeces = indices[int(np.round(len(self.adata) * 0.8)) :]
         val_indeces = indices[int(np.round(len(self.adata) * 0.8)) : int(np.round(len(self.adata) * 0.9))]
         test_indices = indices[int(np.round(len(self.adata) * 0.9)) :]
+        # testing
         match split:
             case "train":
                 self.indices = train_indeces

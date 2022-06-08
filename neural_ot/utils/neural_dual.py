@@ -137,13 +137,11 @@ class NeuralDualSolver:
         testloader_target: DataLoader,
     ) -> "NeuralDual":
         """Call the training script, and return the trained neural dual."""
+        self.valid_step = self.get_eval_step(validloader_source, validloader_target, split="val")
+        self.test_step = self.get_eval_step(testloader_source, testloader_target, split="test")
         self.train_neuraldual(
             trainloader_source,
             trainloader_target,
-            validloader_source,
-            validloader_target,
-            testloader_source,
-            testloader_target,
         )
         return self.neural_dual
 
@@ -151,10 +149,6 @@ class NeuralDualSolver:
         self,
         trainloader_source,
         trainloader_target,
-        validloader_source,
-        validloader_target,
-        testloader_source,
-        testloader_target,
     ):
         """Train the neural dual and call evaluation script."""
         # define dict to contain source and target batch
@@ -222,9 +216,9 @@ class NeuralDualSolver:
 
             # evalute on validation set periodically
             if step != 0 and step % self.valid_freq == 0:
-                self.eval_step(validloader_source, validloader_target, split="val", step=step)
+                self.valid_step(step=step)
         # evaluate on test set
-        self.eval_step(testloader_source, testloader_target, split="test")
+        self.test_step()
         if self.save_ckpt:
             self.save_checkpoint("last", step=step)
 
@@ -286,61 +280,59 @@ class NeuralDualSolver:
 
         return step_fn
 
-    @jax.jit
-    def eval_step(
-        self,
-        source_loader: DataLoader,
-        target_loader: DataLoader,
-        split: str = "val",
-        step: int = None,
-    ):
-        """Create a one-step training and evaluation function."""
-        source = []
-        target = []
-        pred_target = []
-        pred_source = []
-        # get whole source set and transported source
-        for batch_source in source_loader:
-            # move to device
-            jnp_batch_source = jnp.array(batch_source)
-            source.append(jnp_batch_source)
-            pred_target.append(self.neural_dual.transport(jnp_batch_source))
-        # get whole target set and inverse transported target
-        for batch_target in target_loader:
-            # move to device
-            jnp_batch_target = jnp.array(batch_target)
-            target.append(jnp_batch_target)
-            pred_source.append(self.neural_dual.inverse_transport(jnp_batch_target))
+    def get_eval_step(self, source_loader: DataLoader, target_loader: DataLoader, split: str):
+        """Get validation or test step."""
 
-        # calculate sinkhorn loss on predicted and true samples
-        source = jnp.concatenate(source)
-        target = jnp.concatenate(target)
-        pred_target = jnp.concatenate(pred_target)
-        pred_source = jnp.concatenate(pred_source)
-        sink_loss_forward = sinkhorn_loss(pred_target, target)
-        sink_loss_inverse = sinkhorn_loss(pred_source, source)
-        # get sinkhorn loss and neural dual distance between true source and target
-        if self.sink_dist[split] is None:
-            self.sink_dist[split] = sinkhorn_loss(source, target)
-            wandb.log({f"{split}_sink_dist": self.sink_dist[split]})
-        neural_dual_dist = self.neural_dual.distance(source, target)
+        def eval_step(step: int = None):
+            """Create a one-step training and evaluation function."""
+            source = []
+            target = []
+            pred_target = []
+            pred_source = []
+            # get whole source set and transported source
+            for batch_source in source_loader:
+                # move to device
+                jnp_batch_source = jnp.array(batch_source)
+                source.append(jnp_batch_source)
+                pred_target.append(self.neural_dual.transport(jnp_batch_source))
+            # get whole target set and inverse transported target
+            for batch_target in target_loader:
+                # move to device
+                jnp_batch_target = jnp.array(batch_target)
+                target.append(jnp_batch_target)
+                pred_source.append(self.neural_dual.inverse_transport(jnp_batch_target))
 
-        # update best model if necessary
-        total_sink_loss = sink_loss_forward + sink_loss_inverse
-        if split == "val" and total_sink_loss < self.best_sink_dist:
-            self.best_sink_dist = total_sink_loss
-            if self.save_ckpt:
-                self.save_checkpoint("best", step=step)
+            # calculate sinkhorn loss on predicted and true samples
+            source = jnp.concatenate(source)
+            target = jnp.concatenate(target)
+            pred_target = jnp.concatenate(pred_target)
+            pred_source = jnp.concatenate(pred_source)
+            sink_loss_forward = sinkhorn_loss(pred_target, target)
+            sink_loss_inverse = sinkhorn_loss(pred_source, source)
+            # get sinkhorn loss and neural dual distance between true source and target
+            if self.sink_dist[split] is None:
+                self.sink_dist[split] = sinkhorn_loss(source, target)
+                wandb.log({f"{split}_sink_dist": self.sink_dist[split]})
+            neural_dual_dist = self.neural_dual.distance(source, target)
 
-        # log to wandb
-        if self.logging:
-            wandb.log(
-                {
-                    f"{split}_sink_loss_forward": sink_loss_forward,
-                    f"{split}_sink_loss_inverse": sink_loss_inverse,
-                    f"{split}_neural_dual_dist": neural_dual_dist,
-                }
-            )
+            # update best model if necessary
+            total_sink_loss = sink_loss_forward + sink_loss_inverse
+            if split == "val" and total_sink_loss < self.best_sink_loss:
+                self.best_sink_loss = total_sink_loss
+                if self.save_ckpt:
+                    self.save_checkpoint("best", step=step)
+
+            # log to wandb
+            if self.logging:
+                wandb.log(
+                    {
+                        f"{split}_sink_loss_forward": sink_loss_forward,
+                        f"{split}_sink_loss_inverse": sink_loss_inverse,
+                        f"{split}_neural_dual_dist": neural_dual_dist,
+                    }
+                )
+
+        return eval_step
 
     def create_train_state(self, rng, model, optimizer, input):
         """Create initial `TrainState`."""
@@ -364,10 +356,10 @@ class NeuralDualSolver:
                 penalty += jnp.linalg.norm(jax.nn.relu(-params[k]["kernel"]))
         return penalty
 
-    def save_checkpoint(self, ckpt_name: str):
+    def save_checkpoint(self, ckpt_name: str, step: int):
         """Save checkpoint."""
-        checkpoints.save_checkpoint(f"{self.ckpt_dir}/{ckpt_name}/neural_f", self.neural_dual.state_f.params)
-        checkpoints.save_checkpoint(f"{self.ckpt_dir}/{ckpt_name}/neural_g", self.neural_dual.state_f.params)
+        checkpoints.save_checkpoint(f"{self.ckpt_dir}/{ckpt_name}/neural_f", self.neural_dual.state_f, step=step)
+        checkpoints.save_checkpoint(f"{self.ckpt_dir}/{ckpt_name}/neural_g", self.neural_dual.state_g, step=step)
 
 
 @jax.tree_util.register_pytree_node_class
