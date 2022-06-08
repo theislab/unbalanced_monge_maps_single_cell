@@ -219,9 +219,8 @@ class NeuralDualSolver:
             if step != 0 and step % self.valid_freq == 0:
                 self.valid_step(step=step)
         # evaluate on test set
+        self.neural_dual.load_checkpoint(f"{self.ckpt_dir}/best")
         self.test_step()
-        if self.save_ckpt:
-            self.save_checkpoint("last", step=step)
 
     def get_train_step(self):
         """Get the training step."""
@@ -422,6 +421,11 @@ class NeuralDual:
         # compute final wasserstein distance
         dist = 2 * jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s + 0.5 * t_sq + 0.5 * s_sq)
         return dist
+
+    def load_checkpoint(self, cpkt_dir: str):
+        """Load checkpoint."""
+        self.state_f = checkpoints.restore_checkpoint(f"{cpkt_dir}/neural_f", target=self.state_f)
+        self.state_g = checkpoints.restore_checkpoint(f"{cpkt_dir}/neural_g", target=self.state_g)
 
 
 @jax.jit
