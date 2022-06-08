@@ -157,14 +157,15 @@ class NeuralDualSolver:
         # set sink dist dictionaries (only needs to be computed once for each split)
         self.sink_dist = {"val": None, "test": None}
         self.best_sink_loss = 1e8
+        num_epoch_iters = len(trainloader_source) * len(trainloader_target)
 
         for step in tqdm(range(self.epochs)):
+            train_loss_f = 0.0
+            train_loss_g = 0.0
+            train_w_dist = 0.0
+            train_penalty = 0.0
             # execute training steps
             for target in trainloader_target:
-                train_loss_f = 0.0
-                train_loss_g = 0.0
-                train_w_dist = 0.0
-                train_penalty = 0.0
                 # get train batch from source distribution
                 batch["target"] = jnp.array(target)
                 # set gradients of f to zero
@@ -197,23 +198,23 @@ class NeuralDualSolver:
                 self.neural_dual.state_f = self.neural_dual.state_f.replace(
                     params=self.clip_weights_icnn(self.neural_dual.state_f.params)
                 )
-                # scale loss accordingly
-                train_loss_f /= len(trainloader_source)
-                train_loss_g /= len(trainloader_source)
-                train_w_dist /= len(trainloader_source)
-                train_penalty /= len(trainloader_source)
 
-                # log to wandb
-                if self.logging and step % self.log_freq == 0:
-                    wandb.log(
-                        {
-                            "train_loss_f": train_loss_f,
-                            "train_loss_g": train_loss_g,
-                            "train_w_dist": train_w_dist,
-                            "train_penalty": train_penalty,
-                        }
-                    )
+            # scale loss accordingly
+            train_loss_f /= num_epoch_iters
+            train_loss_g /= num_epoch_iters
+            train_w_dist /= num_epoch_iters
+            train_penalty /= num_epoch_iters
 
+            # log to wandb
+            if self.logging and step % self.log_freq == 0:
+                wandb.log(
+                    {
+                        "train_loss_f": train_loss_f,
+                        "train_loss_g": train_loss_g,
+                        "train_w_dist": train_w_dist,
+                        "train_penalty": train_penalty,
+                    }
+                )
             # evalute on validation set periodically
             if step != 0 and step % self.valid_freq == 0:
                 self.valid_step(step=step)
