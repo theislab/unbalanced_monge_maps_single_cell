@@ -18,7 +18,7 @@ class AnnDataset(Dataset):
         self.adata = sc.read_h5ad(adata_path)
         self.use_pca = use_pca
         # split data
-        indices = np.arange(self.__len__())
+        indices = np.arange(len(self.adata))
         rng.shuffle(indices)
         train_indeces = indices[: int(np.round(len(self.adata) * 0.8))]
         val_indeces = indices[int(np.round(len(self.adata) * 0.8)) : int(np.round(len(self.adata) * 0.9))]
@@ -31,6 +31,8 @@ class AnnDataset(Dataset):
                 self.indices = val_indeces
             case "test":
                 self.indices = test_indices
+            case "full":
+                self.indices = indices
             case _:
                 raise ValueError(f"Unknown split: {split}")
         self.adata = self.adata[self.indices]

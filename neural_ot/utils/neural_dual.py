@@ -46,12 +46,15 @@ class NeuralDualSolver:
       optimizer_f: optimizer function for potential f
       optimizer_g: optimizer function for potential g
       epochs: number of total training iterations
+      inner_iters: number of inner iterations for each training iteration
       valid_freq: frequency with which model is validated
       log_freq: frequency with training and validation are logged
       logging: option to return logs
       seed: random seed for network initialiations
       pos_weights: option to train networks with potitive weights or regularizer
       beta: regularization parameter when not training with positive weights
+      save_ckpt: option to save checkpoints
+      ckpt_dir: directory to save checkpoints
 
     Returns:
       the `NeuralDual` containing the optimal dual potentials f and g
@@ -65,6 +68,7 @@ class NeuralDualSolver:
         optimizer_f: Optional[base.GradientTransformation] = None,
         optimizer_g: Optional[base.GradientTransformation] = None,
         epochs: int = 100,
+        inner_iters: int = 10,
         valid_freq: int = 5,
         log_freq: int = 1,
         logging: bool = True,
@@ -72,9 +76,10 @@ class NeuralDualSolver:
         pos_weights: bool = False,
         beta: int = 1.0,
         save_ckpt: bool = True,
-        ckpt_dir: str = "checkpoints/run_one",
+        ckpt_dir: str = "checkpoints/test_run",
     ):
         self.epochs = epochs
+        self.inner_iters = inner_iters
         self.valid_freq = valid_freq
         self.log_freq = log_freq
         self.logging = logging
@@ -85,6 +90,7 @@ class NeuralDualSolver:
 
         # set random key
         rng = jax.random.PRNGKey(seed)
+        # init wandb
         wandb.init(project="Neural-OT")
 
         # set default optimizers
@@ -137,8 +143,10 @@ class NeuralDualSolver:
         testloader_target: DataLoader,
     ) -> "NeuralDual":
         """Call the training script, and return the trained neural dual."""
+        # create valid & test step
         self.valid_step = self.get_eval_step(validloader_source, validloader_target, split="val")
         self.test_step = self.get_eval_step(testloader_source, testloader_target, split="test")
+
         self.train_neuraldual(
             trainloader_source,
             trainloader_target,
@@ -171,7 +179,7 @@ class NeuralDualSolver:
                 # set gradients of f to zero
                 grads_f_accumulated = jax.jit(jax.grad(lambda _: 0.0))(self.neural_dual.state_f.params)
 
-                for source in trainloader_source:
+                for inner_iter, source in enumerate(trainloader_source):
                     # get train batch from target distribution
                     batch["source"] = jnp.array(source)
                     # train step for potential g
@@ -191,6 +199,8 @@ class NeuralDualSolver:
                     # accumulate gradients: accumulated_grad = accumulated_grad - current_grad
                     # because f is the dual potential, we need to subtract the gradients of f
                     grads_f_accumulated = subtract_pytrees(grads_f_accumulated, grads_f)
+                    if (inner_iter + 1) == self.inner_iters:
+                        break
 
                 # update potential f with accumulated gradients
                 self.neural_dual.state_f = self.neural_dual.state_f.apply_gradients(grads=grads_f_accumulated)
@@ -309,11 +319,24 @@ class NeuralDualSolver:
             pred_source = jnp.concatenate(pred_source)
             sink_loss_forward = sinkhorn_loss(pred_target, target)
             sink_loss_inverse = sinkhorn_loss(pred_source, source)
+            if self.logging:
+                wandb.log(
+                    {
+                        f"{split}_sink_loss_forward": sink_loss_forward,
+                        f"{split}_sink_loss_inverse": sink_loss_inverse,
+                    }
+                )
             # get sinkhorn loss and neural dual distance between true source and target
             if self.sink_dist[split] is None:
+                # only compute & log sinkhorn distance once
                 self.sink_dist[split] = sinkhorn_loss(source, target)
-                wandb.log({f"{split}_sink_dist": self.sink_dist[split]})
-            neural_dual_dist = self.neural_dual.distance(source, target)
+                if self.logging:
+                    wandb.log({f"{split}_sink_dist": self.sink_dist[split]})
+            # neural distance only computable with equally sized validation sets
+            if source.shape[0] == target.shape[0]:
+                neural_dual_dist = self.neural_dual.distance(source, target)
+                if self.logging:
+                    wandb.log({f"{split}_neural_dual_dist": neural_dual_dist})
 
             # update best model if necessary
             total_sink_loss = sink_loss_forward + sink_loss_inverse
@@ -321,16 +344,6 @@ class NeuralDualSolver:
                 self.best_sink_loss = total_sink_loss
                 if self.save_ckpt:
                     self.save_checkpoint("best", step=step)
-
-            # log to wandb
-            if self.logging:
-                wandb.log(
-                    {
-                        f"{split}_sink_loss_forward": sink_loss_forward,
-                        f"{split}_sink_loss_inverse": sink_loss_inverse,
-                        f"{split}_neural_dual_dist": neural_dual_dist,
-                    }
-                )
 
         return eval_step
 
