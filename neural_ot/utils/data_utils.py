@@ -22,9 +22,9 @@ def get_anndata_loaders(
         val_data = adata.obsm["X_pca"][val_indeces]
         test_data = adata.obsm["X_pca"][test_indices]
     else:
-        train_data = adata.X[train_indeces]
-        val_data = adata.X[val_indeces]
-        test_data = adata.X[test_indices]
+        train_data = adata.X[train_indeces].toarray()
+        val_data = adata.X[val_indeces].toarray()
+        test_data = adata.X[test_indices].toarray()
     # create datasets & loaders
     train_dataset = NumpyDataset(train_data)
     valid_dataset = NumpyDataset(val_data)
