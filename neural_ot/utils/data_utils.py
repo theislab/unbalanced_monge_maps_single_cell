@@ -12,9 +12,9 @@ def get_anndata_loaders(
     """Load AnnData object, split data and return a tuple of data loaders."""
     adata = sc.read(adata_path, backed="r+", cache=True)
     # split data
-    indices = np.arange(len(adata))
+    indices = np.arange(len(adata)) # not sure but probably could be simplified with https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.train_test_split.html
     rng.shuffle(indices)
-    train_indeces = indices[: int(np.round(len(adata) * 0.8))]
+    train_indeces = indices[: int(np.round(len(adata) * 0.8))]  # if you keep it it would be "xxx_indices"
     val_indeces = indices[int(np.round(len(adata) * 0.8)) : int(np.round(len(adata) * 0.9))]
     test_indices = indices[int(np.round(len(adata) * 0.9)) :]
     if use_pca:
@@ -44,13 +44,14 @@ def get_gaussian_mixture_loaders(
     batch_size: int = 64,
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """Generate Gaussian mixture data, split data and return a tuple of data loaders."""
+    # maybe briefly check for dimensions, i.e. centers and sigma and input_dim "match"
     # generate data
     cholesky_l = np.linalg.cholesky(sigma + 1e-4 * np.eye(input_dim))
     u = rng.normal(loc=0, scale=1, size=[num_samples, input_dim])
     center = centers[rng.choice(len(centers), size=num_samples), :]
     data = center + np.tensordot(u, cholesky_l, axes=1)
     # split data
-    indices = np.arange(len(data))
+    indices = np.arange(len(data))  # same as above, might be easier with sklearn
     rng.shuffle(indices)
     train_data = data[indices[: int(np.round(len(data) * 0.8))]]
     val_data = data[indices[int(np.round(len(data) * 0.8)) : int(np.round(len(data) * 0.9))]]

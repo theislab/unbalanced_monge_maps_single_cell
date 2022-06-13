@@ -32,7 +32,7 @@ from utils.ot_utils import sinkhorn_loss
 
 
 class NeuralDualSolver:
-    r"""Solver of the ICNN-based Kantorovich dual.
+    r"""Solver of the ICNN-based Kantorovich dual. 
 
     The algorithm is described in:
     Optimal transport mapping via input convex neural networks,
@@ -59,6 +59,7 @@ class NeuralDualSolver:
     Returns:
       the `NeuralDual` containing the optimal dual potentials f and g
     """
+    # In general we don't need to have docs yet, feel free to add them if you think that helps of course, if so, check moscot (or any other scverse package) for the format :)
 
     def __init__(
         self,
@@ -91,7 +92,7 @@ class NeuralDualSolver:
         # set random key
         rng = jax.random.PRNGKey(seed)
         # init wandb
-        wandb.init(project="Neural-OT")
+        wandb.init(project="Neural-OT") # maybe make optional and set parameter in init
 
         # set default optimizers
         if optimizer_f is None:
@@ -108,7 +109,7 @@ class NeuralDualSolver:
         # set optimizer and networks
         self.setup(rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g)
 
-    def setup(self, rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g):
+    def setup(self, rng, neural_f, neural_g, input_dim, optimizer_f, optimizer_g):  #  typing
         """Initialize all components required to train the `NeuralDual`."""
         # split random key
         rng, rng_f, rng_g = jax.random.split(rng, 3)
@@ -157,14 +158,14 @@ class NeuralDualSolver:
         self,
         trainloader_source,
         trainloader_target,
-    ):
+    ):  # return typing
         """Train the neural dual and call evaluation script."""
         # define dict to contain source and target batch
         batch = {}
 
         # set sink dist dictionaries (only needs to be computed once for each split)
         self.sink_dist = {"val": None, "test": None}
-        self.best_sink_loss = 1e8
+        self.best_sink_loss = 1e8  # could be set to np.inf() I guess
         num_epoch_iters = len(trainloader_source) * len(trainloader_target)
 
         for step in tqdm(range(self.epochs)):
@@ -232,11 +233,11 @@ class NeuralDualSolver:
         self.neural_dual.load_checkpoint(f"{self.ckpt_dir}/best")
         self.test_step()
 
-    def get_train_step(self):
+    def get_train_step(self):  # return typing
         """Get the training step."""
 
         @jax.jit
-        def loss_fn(params_f, params_g, batch):
+        def loss_fn(params_f, params_g, batch):  # typing
             """Loss function for potential f."""
             # get two distributions
             source, target = batch["source"], batch["target"]
@@ -273,7 +274,7 @@ class NeuralDualSolver:
             state_f: train_state.TrainState,
             state_g: train_state.TrainState,
             batch: jnp.ndarray,
-        ):
+        ): # return typing
             """Step function of either training or validation."""
             grad_fn = jax.value_and_grad(loss_fn, argnums=(0, 1), has_aux=True)
             # compute loss and gradients
@@ -290,7 +291,7 @@ class NeuralDualSolver:
 
         return step_fn
 
-    def get_eval_step(self, source_loader: DataLoader, target_loader: DataLoader, split: str):
+    def get_eval_step(self, source_loader: DataLoader, target_loader: DataLoader, split: str): # return typing
         """Get validation or test step."""
 
         def eval_step(step: int = None):
@@ -347,12 +348,12 @@ class NeuralDualSolver:
 
         return eval_step
 
-    def create_train_state(self, rng, model, optimizer, input):
+    def create_train_state(self, rng, model, optimizer, input): # typing
         """Create initial `TrainState`."""
         params = model.init(rng, jnp.ones(input))["params"]
         return train_state.TrainState.create(apply_fn=model.apply, params=params, tx=optimizer)
 
-    def clip_weights_icnn(self, params):
+    def clip_weights_icnn(self, params): # typing
         """Clip weights of ICNN."""
         params = params.unfreeze()
         for k in params.keys():
@@ -361,7 +362,7 @@ class NeuralDualSolver:
 
         return freeze(params)
 
-    def penalize_weights_icnn(self, params):
+    def penalize_weights_icnn(self, params): # typing
         """Penalize weights of ICNN."""
         penalty = 0
         for k in params.keys():
@@ -369,7 +370,7 @@ class NeuralDualSolver:
                 penalty += jnp.linalg.norm(jax.nn.relu(-params[k]["kernel"]))
         return penalty
 
-    def save_checkpoint(self, ckpt_name: str, step: int):
+    def save_checkpoint(self, ckpt_name: str, step: int): # typing
         """Save checkpoint."""
         checkpoints.save_checkpoint(f"{self.ckpt_dir}/{ckpt_name}/neural_f", self.neural_dual.state_f, step=step)
         checkpoints.save_checkpoint(f"{self.ckpt_dir}/{ckpt_name}/neural_g", self.neural_dual.state_g, step=step)
@@ -388,12 +389,12 @@ class NeuralDual:
         self.state_f = state_f
         self.state_g = state_g
 
-    def tree_flatten(self):
+    def tree_flatten(self): # typing
         """Flatten jax tree."""
         return ((self.state_f, self.state_g), None)
 
     @classmethod
-    def tree_unflatten(cls, aux_data, children):
+    def tree_unflatten(cls, aux_data, children): # typing
         """Unflatten jax tree."""
         return cls(*children)
 
@@ -435,14 +436,14 @@ class NeuralDual:
         dist = 2 * jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s + 0.5 * t_sq + 0.5 * s_sq)
         return dist
 
-    def load_checkpoint(self, cpkt_dir: str):
+    def load_checkpoint(self, cpkt_dir: str): # return typing
         """Load checkpoint."""
         self.state_f = checkpoints.restore_checkpoint(f"{cpkt_dir}/neural_f", target=self.state_f)
         self.state_g = checkpoints.restore_checkpoint(f"{cpkt_dir}/neural_g", target=self.state_g)
 
 
 @jax.jit
-def subtract_pytrees(pytree1, pytree2):
+def subtract_pytrees(pytree1, pytree2):  # typing
     """Subtract one pytree from another.
 
     Args:
