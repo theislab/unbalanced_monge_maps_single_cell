@@ -175,6 +175,7 @@ class NeuralDualSolver:
         self.sink_dist = {"val": None, "test": None}
         self.best_sink_loss = jnp.inf
         inner_iterations = min(len(trainloader_source), self.inner_iters)
+        step_iterations = inner_iterations * len(trainloader_target)
 
         for step in tqdm(range(self.epochs)):
             # execute training steps
@@ -204,7 +205,7 @@ class NeuralDualSolver:
                         )
 
                     # log loss and w_dist
-                    if self.logging and step * inner_iterations + inner_iter % self.log_freq == 0:
+                    if self.logging and (step * step_iterations + inner_iter) % self.log_freq == 0:
                         wandb.log(
                             {
                                 "train_loss": loss,
