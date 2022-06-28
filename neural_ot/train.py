@@ -43,7 +43,7 @@ class ExperimentWrapper:
             )
         elif source_type == "gaussian_mixture_default":
             self.trainloader_source, self.validloader_source, self.testloader_source = get_gaussian_mixture_loaders(
-                rng=rng, **source_params
+                rng=rng, source=True, **source_params
             )
         else:
             raise ValueError(f"Unknown source type: {source_type}")
@@ -54,7 +54,7 @@ class ExperimentWrapper:
             )
         elif target_type == "gaussian_mixture_default":
             self.trainloader_target, self.validloader_target, self.testloader_target = get_gaussian_mixture_loaders(
-                rng=rng, **target_params
+                rng=rng, source=False, **target_params
             )
         else:
             raise ValueError(f"Unknown target type: {target_type}")
@@ -129,10 +129,10 @@ class ExperimentWrapper:
         """Perform training."""
         self.solver(
             self.trainloader_source,
-            self.validloader_source,
-            self.testloader_source,
             self.trainloader_target,
+            self.validloader_source,
             self.validloader_target,
+            self.testloader_source,
             self.testloader_target,
             **training_params,
         )

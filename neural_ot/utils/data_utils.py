@@ -48,16 +48,20 @@ def get_gaussian_mixture_loaders(
     input_dim: int,
     centers: Optional[np.ndarray] = None,
     sigma: Optional[np.ndarray] = None,
+    source: Optional[bool] = None,
     num_centers: int = 1,
     num_samples: int = 15000,
     batch_size: int = 64,
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """Generate Gaussian mixture data, split data and return a tuple of data loaders."""
+    assert source is not None or (centers is not None and sigma is not None)
     # create default centers and sigma
     if centers is None:
-        centers = np.array(
-            [[np.sqrt(input_dim)] + [1.0 + center * 10.0] * (input_dim - 1) for center in np.arange(num_centers)]
-        )
+        if source:
+            base_center = np.sqrt(input_dim)
+        else:
+            base_center = -np.sqrt(input_dim)
+        centers = np.array([[base_center] + [center * 10.0] * (input_dim - 1) for center in np.arange(num_centers)])
     if sigma is None:
         sigma = np.eye(input_dim) * input_dim
     # generate data

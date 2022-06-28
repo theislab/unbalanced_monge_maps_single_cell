@@ -159,7 +159,7 @@ class NeuralDualSolver:
                         "pretrain_loss": loss,
                     }
                 )
-        # load params of g itno state_f
+        # load params of g into state_f
         self.neural_dual.state_f = self.neural_dual.state_f.replace(params=self.neural_dual.state_g.params)
 
     def train_neuraldual(
