@@ -1,0 +1,53 @@
+seml:
+    executable: train.py
+    name: gaussian_wtwogn_pretrain_default
+    output_dir: runs/logs
+    project_root_dir: ..
+
+slurm:
+    sbatch_options_template: GPU
+
+fixed:
+    data:
+        target_type: gaussian_mixture_default
+        source_type: gaussian_mixture_default
+        source_params:
+            input_dim: 50
+            num_centers: 1
+            batch_size: 1024
+            num_samples: 15000
+        target_params:
+            input_dim: 50
+            num_centers: 1
+            batch_size: 1024
+            num_samples: 15000
+    model:
+        model_type: icnn
+        model_params:
+            dim_hidden: [128, 128, 64]
+            pos_weights: False
+            first_quadratic: False
+            last_quadratic_term: True
+            quad_rank: 3
+    optimization:
+        optimizer_type: adam
+        optimizer_params:
+            learning_rate: 0.001
+            beta_one: 0.8
+            beta_two: 0.9
+            clip_grad_norm: 1.0
+    solver:
+        solver_type: wtwo_gn
+        solver_params:
+            input_dim: 50
+            logging: True
+            pos_weights: False
+            beta: 1.0
+            pretrain: True
+            cycle_loss_weight: 3.0
+            ckpt_dir: runs/gaussian_wtwogn_pretrain_default
+    training.training_params:
+        epochs: 500
+        inner_iters: 1
+        valid_freq: 5
+        log_freq: 1

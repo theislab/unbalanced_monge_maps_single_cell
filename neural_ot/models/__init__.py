@@ -1,1 +1,1 @@
-from .icnn import get_icnn
+from .icnn import ICNN

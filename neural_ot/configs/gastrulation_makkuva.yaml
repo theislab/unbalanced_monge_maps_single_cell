@@ -1,0 +1,49 @@
+seml:
+    executable: train.py
+    name: gastrulation_makkuva_pretrain_default
+    output_dir: runs/logs
+    project_root_dir: ..
+
+slurm:
+    sbatch_options_template: GPU
+
+fixed:
+    data:
+        target_type: gastrulation
+        source_type: gastrulation
+        source_params:
+            use_pca: True
+            batch_size: 1024
+            adata_path: data/Gastrulation/gastrulation_E825.h5ad
+        target_params:
+            use_pca: True
+            batch_size: 1024
+            adata_path: data/Gastrulation/gastrulation_E850.h5ad
+    model:
+        model_type: icnn
+        model_params:
+            dim_hidden: [128, 128, 64]
+            pos_weights: False
+            first_quadratic: True
+            last_quadratic_term: False
+    optimization:
+        optimizer_type: adam
+        optimizer_params:
+            learning_rate: 0.001
+            beta_one: 0.8
+            beta_two: 0.9
+            clip_grad_norm: 1.0
+    solver:
+        solver_type: makkuva
+        solver_params:
+            input_dim: 50
+            logging: True
+            pos_weights: False
+            beta: 1.0
+            pretrain: True
+            ckpt_dir: runs/gastrulation_makkuva_pretrain_default
+    training.training_params:
+        epochs: 250
+        inner_iters: 15
+        valid_freq: 5
+        log_freq: 1
