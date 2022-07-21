@@ -4,7 +4,7 @@ import jax
 import numpy as np
 import optax
 import seml
-from data import get_anndata_loaders, get_gaussian_mixture_loaders
+from data import get_anndata_samplers, get_gaussian_mixture_samplers
 from flax import linen as nn
 from models import ICNN
 from sacred import Experiment
@@ -49,11 +49,11 @@ class ExperimentWrapper:
         logging.info(f"Using source dataset: {source_type}")
         if source_type.startswith("anndata"):
             logging.info(f"Using source anndata path: {source_params['anndata_path']}")
-            self.trainloader_source, self.validloader_source, self.testloader_source = get_anndata_loaders(
+            self.trainloader_source, self.validloader_source, self.testloader_source = get_anndata_samplers(
                 rng=rng, **source_params
             )
         elif source_type == "gaussian_mixture_default":
-            self.trainloader_source, self.validloader_source, self.testloader_source = get_gaussian_mixture_loaders(
+            self.trainloader_source, self.validloader_source, self.testloader_source = get_gaussian_mixture_samplers(
                 rng=rng, source=True, **source_params
             )
         else:
@@ -62,11 +62,11 @@ class ExperimentWrapper:
         logging.info(f"Using target dataset: {target_type}")
         if source_type.startswith("anndata"):
             logging.info(f"Using target anndata path: {target_params['anndata_path']}")
-            self.trainloader_target, self.validloader_target, self.testloader_target = get_anndata_loaders(
+            self.trainloader_target, self.validloader_target, self.testloader_target = get_anndata_samplers(
                 rng=rng, **target_params
             )
         elif target_type == "gaussian_mixture_default":
-            self.trainloader_target, self.validloader_target, self.testloader_target = get_gaussian_mixture_loaders(
+            self.trainloader_target, self.validloader_target, self.testloader_target = get_gaussian_mixture_samplers(
                 rng=rng, source=False, **target_params
             )
         else:
