@@ -1,9 +1,14 @@
+import logging
+
+import jax
 import numpy as np
 import optax
 import seml
+from data import get_anndata_loaders, get_gaussian_mixture_loaders
+from flax import linen as nn
 from models import ICNN
 from sacred import Experiment
-from utils import NeuralDualSolver, get_anndata_loaders, get_gaussian_mixture_loaders
+from solvers import NeuralDualSolver
 
 ex = Experiment()
 seml.setup_logger(ex)
@@ -27,17 +32,23 @@ def config():
 class ExperimentWrapper:
     """A simple wrapper around a sacred experiment, making use of sacred's captured functions with prefixes."""
 
-    def __init__(self, init_all=True):
+    @ex.capture(prefix="seml")
+    def __init__(self, exp_name: str):
         # always use seed 0 for reprodicibility
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+        logging.info(f"Starting seml experiment {exp_name}")
         self.seed = 0
-        if init_all:
-            self.init_all()
+        self.ckpt_dir = f"runs/ckpts/{exp_name}"
+        self.init_all()
 
     @ex.capture(prefix="data")
     def init_dataset(self, source_type: str, source_params: dict, target_type: str, target_params: dict):
         """Create dataset for target and source including data splitting, preprocessing etc. and get dataloaders."""
         rng = np.random.default_rng(self.seed)
-        if source_type == "gastrulation":
+        self.ckpt_dir += f"/{source_type}_{target_type}"
+        logging.info(f"Using source dataset: {source_type}")
+        if source_type.startswith("anndata"):
+            logging.info(f"Using source anndata path: {source_params['anndata_path']}")
             self.trainloader_source, self.validloader_source, self.testloader_source = get_anndata_loaders(
                 rng=rng, **source_params
             )
@@ -48,7 +59,9 @@ class ExperimentWrapper:
         else:
             raise ValueError(f"Unknown source type: {source_type}")
 
-        if target_type == "gastrulation":
+        logging.info(f"Using target dataset: {target_type}")
+        if source_type.startswith("anndata"):
+            logging.info(f"Using target anndata path: {target_params['anndata_path']}")
             self.trainloader_target, self.validloader_target, self.testloader_target = get_anndata_loaders(
                 rng=rng, **target_params
             )
@@ -60,18 +73,29 @@ class ExperimentWrapper:
             raise ValueError(f"Unknown target type: {target_type}")
 
     @ex.capture(prefix="model")
-    def init_model(self, model_type: str, model_params: dict):
+    def init_model(self, model_type: str, activation: str, model_params: dict):
         """Create neural f & g."""
+        logging.info(f"Using activation function: {activation}")
+        self.ckpt_dir += f"/{activation}"
+        if activation == "relu":
+            activation = nn.relu
+        elif activation == "elu":
+            activation = nn.elu
+        elif activation == "leaky_relu":
+            activation = nn.leaky_relu
+        else:
+            raise ValueError(f"Unknown activation: {activation}")
         if model_type == "icnn":
             # for now use the same architecture for f & g
-            self.neural_f = ICNN(**model_params)
-            self.neural_g = ICNN(**model_params)
+            self.neural_f = ICNN(act_fn=activation, **model_params)
+            self.neural_g = ICNN(act_fn=activation, **model_params)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
     @ex.capture(prefix="optimization")
     def init_optimizer(self, optimizer_type: str, optimizer_params: dict):
         """Create optimizer for f & g."""
+        logging.info(f"Using optimizer: {optimizer_type}")
         if optimizer_type == "adam":
             # for now use the same optimizer params for f & g
             self.optimizer_f = optax.adam(
@@ -96,6 +120,8 @@ class ExperimentWrapper:
     @ex.capture(prefix="solver")
     def init_solver(self, solver_type: str, solver_params: dict):
         """Initialize solver depending on the solver type."""
+        logging.info(f"Using solver: {solver_type}")
+        self.ckpt_dir += f"/{solver_type}"
         if solver_type == "makkuva":
             self.solver = NeuralDualSolver(
                 use_wtwo_gn=False,
@@ -103,6 +129,7 @@ class ExperimentWrapper:
                 neural_g=self.neural_g,
                 optimizer_f=self.optimizer_f,
                 optimizer_g=self.optimizer_g,
+                ckpt_dir=self.ckpt_dir,
                 **solver_params,
             )
         elif solver_type == "wtwo_gn":
@@ -112,6 +139,7 @@ class ExperimentWrapper:
                 neural_g=self.neural_g,
                 optimizer_f=self.optimizer_f,
                 optimizer_g=self.optimizer_g,
+                ckpt_dir=self.ckpt_dir,
                 **solver_params,
             )
         else:
@@ -141,6 +169,8 @@ class ExperimentWrapper:
 @ex.automain
 def train(experiment=None):
     """Run the training script."""
+    jax.config.update("jax_enable_x64", True)
+    jax.config.update("jax_debug_nans", True)
     if experiment is None:
         experiment = ExperimentWrapper()
     return experiment.train()

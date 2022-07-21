@@ -1,5 +1,3 @@
-from typing import Optional
-
 import jax
 import jax.numpy as jnp
 from flax.training import checkpoints, train_state
@@ -7,21 +5,11 @@ from flax.training import checkpoints, train_state
 
 @jax.tree_util.register_pytree_node_class
 class NeuralDual:
-    r"""Neural Kantorovich dual.
+    """Neural Kantorovich dual."""
 
-    Args:
-      state_f: optimal potential f
-      state_g: optimal potential g
-    """
-
-    def __init__(
-        self, state_f: train_state.TrainState, state_g: train_state.TrainState, ckpt_path: Optional[str] = None
-    ):
-        if ckpt_path is not None:
-            self.load_checkpoint(ckpt_path)
-        else:
-            self.state_f = state_f
-            self.state_g = state_g
+    def __init__(self, state_f: train_state.TrainState, state_g: train_state.TrainState):
+        self.state_f = state_f
+        self.state_g = state_g
 
     def tree_flatten(self):
         """Flatten jax tree."""
@@ -77,7 +65,7 @@ class NeuralDual:
         t_sq = jnp.sum(target * target, axis=1)
 
         # compute final wasserstein distance
-        dist = 2 * jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s + 0.5 * t_sq + 0.5 * s_sq)
+        dist = 2 * (0.5 * (jnp.mean(t_sq) + jnp.mean(s_sq)) - jnp.mean(f_t) - jnp.mean(s_dot_grad_g_s - f_grad_g_s))
         return dist
 
     def load_checkpoint(self, cpkt_dir: str):

@@ -1,16 +1,16 @@
 seml:
     executable: train.py
-    name: gastrulation_makkuva_pretrain_default
+    name: gastrulation_makkuva_pretrain
     output_dir: runs/logs
-    project_root_dir: ..
+    project_root_dir: ../..
 
 slurm:
     sbatch_options_template: GPU
 
 fixed:
     data:
-        target_type: gastrulation
-        source_type: gastrulation
+        target_type: anndatagastrulation
+        source_type: anndatagastrulation
         source_params:
             use_pca: True
             batch_size: 1024
@@ -41,7 +41,6 @@ fixed:
             pos_weights: False
             beta: 1.0
             pretrain: True
-            ckpt_dir: runs/gastrulation_makkuva_pretrain_default
     training.training_params:
         epochs: 250
         inner_iters: 15
