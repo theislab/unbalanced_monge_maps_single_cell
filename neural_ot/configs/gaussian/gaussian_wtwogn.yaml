@@ -42,7 +42,6 @@ fixed:
             input_dim: 50
             logging: True
             pos_weights: False
-            exp_weights: False
             beta: 1.0
             pretrain: True
             cycle_loss_weight: 3.0

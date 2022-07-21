@@ -3,7 +3,8 @@ from typing import Optional, Tuple
 import jax
 import jax.numpy as jnp
 import scanpy as sc
-from data import JaxSampler
+
+from .jax_data import JaxSampler
 
 
 def get_anndata_samplers(
