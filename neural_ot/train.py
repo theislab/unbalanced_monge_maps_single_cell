@@ -1,7 +1,6 @@
 import logging
 
 import jax
-import numpy as np
 import optax
 import seml
 from data import get_anndata_samplers, get_gaussian_mixture_samplers
@@ -44,17 +43,17 @@ class ExperimentWrapper:
     @ex.capture(prefix="data")
     def init_dataset(self, source_type: str, source_params: dict, target_type: str, target_params: dict):
         """Create dataset for target and source including data splitting, preprocessing etc. and get dataloaders."""
-        rng = np.random.default_rng(self.seed)
+        key = jax.random.PRNGKey(self.seed)
         self.ckpt_dir += f"/{source_type}_{target_type}"
         logging.info(f"Using source dataset: {source_type}")
         if source_type.startswith("anndata"):
             logging.info(f"Using source anndata path: {source_params['anndata_path']}")
             self.trainloader_source, self.validloader_source, self.testloader_source = get_anndata_samplers(
-                rng=rng, **source_params
+                key=key, **source_params
             )
         elif source_type == "gaussian_mixture_default":
             self.trainloader_source, self.validloader_source, self.testloader_source = get_gaussian_mixture_samplers(
-                rng=rng, source=True, **source_params
+                key=key, source=True, **source_params
             )
         else:
             raise ValueError(f"Unknown source type: {source_type}")
@@ -63,11 +62,11 @@ class ExperimentWrapper:
         if source_type.startswith("anndata"):
             logging.info(f"Using target anndata path: {target_params['anndata_path']}")
             self.trainloader_target, self.validloader_target, self.testloader_target = get_anndata_samplers(
-                rng=rng, **target_params
+                key=key, **target_params
             )
         elif target_type == "gaussian_mixture_default":
             self.trainloader_target, self.validloader_target, self.testloader_target = get_gaussian_mixture_samplers(
-                rng=rng, source=False, **target_params
+                key=key, source=False, **target_params
             )
         else:
             raise ValueError(f"Unknown target type: {target_type}")
@@ -169,7 +168,6 @@ class ExperimentWrapper:
 @ex.automain
 def train(experiment=None):
     """Run the training script."""
-    jax.config.update("jax_enable_x64", True)
     jax.config.update("jax_debug_nans", True)
     if experiment is None:
         experiment = ExperimentWrapper()

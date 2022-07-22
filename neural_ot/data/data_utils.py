@@ -13,9 +13,9 @@ def get_anndata_samplers(
     """Load AnnData object, split data and return a tuple of data samplers."""
     adata = sc.read(adata_path, backed="r+", cache=True)
     if use_pca:
-        data = jnp.float64(adata.obsm["X_pca"])
+        data = jnp.array(adata.obsm["X_pca"])
     else:
-        data = jnp.float64(adata.X.toarray())
+        data = jnp.array(adata.X.toarray())
     if full_dataset:
         datasampler = JaxSampler(data, batch_size=batch_size, shuffle=False, drop_last=False)
         return datasampler, datasampler, datasampler
@@ -48,14 +48,14 @@ def get_gaussian_mixture_samplers(
             base_center = jnp.sqrt(input_dim)
         else:
             base_center = -jnp.sqrt(input_dim)
-        centers = jnp.float64([[base_center] + [center * 10.0] * (input_dim - 1) for center in jnp.arange(num_centers)])
+        centers = jnp.array([[base_center] + [center * 10.0] * (input_dim - 1) for center in jnp.arange(num_centers)])
     if sigma is None:
         sigma = jnp.eye(input_dim) * input_dim
     # generate data
     cholesky_l = jnp.linalg.cholesky(sigma + 1e-4 * jnp.eye(input_dim))
     u = jax.random.normal(key, shape=[num_samples, input_dim])
     center = centers[jax.random.choice(key, len(centers), shape=[num_samples]), :]
-    data = jnp.float64(center + jnp.tensordot(u, cholesky_l, axes=1))
+    data = jnp.array(center + jnp.tensordot(u, cholesky_l, axes=1))
     # split data
     indices = jnp.arange(len(data))
     indices = jax.random.shuffle(key, indices)
