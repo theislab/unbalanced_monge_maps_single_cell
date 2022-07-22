@@ -44,14 +44,10 @@ class ICNN(nn.Module):
                 factor, mean = self.compute_identity_map(self.dim_data)
             kernel_inits_wz = [nn.initializers.constant(rescale(1.0 / dim)) for dim in self.dim_hidden]
             kernel_inits_wz.insert(0, nn.initializers.constant(rescale(1.0)))
-            kernel_init_wx = nn.initializers.constant(0.0)
-            bias_init = nn.initializers.constant(1.0)
             kernel_init_wx_pot = lambda *args, **kwargs: factor
             bias_init_wx_pot = lambda *args, **kwargs: mean
         else:
             kernel_inits_wz = self.init_fn(self.init_std)
-            kernel_init_wx = self.init_fn(self.init_std)
-            bias_init = nn.initializers.constant(0.0)
             kernel_init_wx_pot = nn.initializers.lecun_normal()
             bias_init_wx_pot = nn.initializers.zeros
 
@@ -85,16 +81,16 @@ class ICNN(nn.Module):
             w_xs.append(
                 nn.Dense(
                     self.dim_hidden[i],
-                    kernel_init=kernel_init_wx,
-                    bias_init=bias_init,
+                    kernel_init=self.init_fn(self.init_std),
+                    bias_init=self.init_fn(self.init_std),
                     use_bias=True,
                 )
             )
         w_xs.append(
             nn.Dense(
                 1,
-                kernel_init=kernel_init_wx,
-                bias_init=bias_init,
+                kernel_init=self.init_fn(self.init_std),
+                bias_init=self.init_fn(self.init_std),
                 use_bias=True,
             )
         )
