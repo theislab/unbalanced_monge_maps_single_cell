@@ -37,28 +37,34 @@ class ICNN(nn.Module):
             rescale = lambda x: x
 
         if self.closed_form_init:
-            kernel_init_wz = nn.initializers.constant(rescale(1.0))
-            kernel_init_wx_pot = lambda *args, **kwargs: factor
-            bias_init_wx_pot = lambda *args, **kwargs: mean
+            assert self.first_quadratic_term
             if self.gaussian_map is not None:
                 factor, mean = self.compute_gaussian_map(self.gaussian_map)
             else:
                 factor, mean = self.compute_identity_map(self.dim_data)
+            kernel_inits_wz = [nn.initializers.constant(rescale(1.0 / dim)) for dim in self.dim_hidden]
+            kernel_inits_wz.insert(0, nn.initializers.constant(rescale(1.0)))
+            kernel_init_wx = nn.initializers.constant(0.0)
+            bias_init = nn.initializers.constant(1.0)
+            kernel_init_wx_pot = lambda *args, **kwargs: factor
+            bias_init_wx_pot = lambda *args, **kwargs: mean
         else:
-            kernel_init_wz = self.init_fn(self.init_std)
+            kernel_inits_wz = self.init_fn(self.init_std)
+            kernel_init_wx = self.init_fn(self.init_std)
+            bias_init = nn.initializers.constant(0.0)
             kernel_init_wx_pot = nn.initializers.lecun_normal()
-            bias_init_wx_pot = nn.initializers.zeros()
+            bias_init_wx_pot = nn.initializers.zeros
 
         w_zs = []
         for i in range(1, num_hidden):
             w_zs.append(
                 Dense(
                     self.dim_hidden[i],
-                    kernel_init=kernel_init_wz,
+                    kernel_init=kernel_inits_wz[i],
                     use_bias=False,
                 )
             )
-        w_zs.append(Dense(1, kernel_init=kernel_init_wz, use_bias=False))
+        w_zs.append(Dense(1, kernel_init=kernel_inits_wz[-1], use_bias=False))
         self.w_zs = w_zs
 
         w_xs = []
@@ -69,6 +75,7 @@ class ICNN(nn.Module):
             w_xs.append(
                 PosDefPotentials(
                     self.dim_data,
+                    num_potentials=1,
                     kernel_init=kernel_init_wx_pot,
                     bias_init=bias_init_wx_pot,
                     use_bias=True,
@@ -78,16 +85,16 @@ class ICNN(nn.Module):
             w_xs.append(
                 nn.Dense(
                     self.dim_hidden[i],
-                    kernel_init=self.init_fn(self.init_std),
-                    bias_init=self.init_fn(self.init_std),
+                    kernel_init=kernel_init_wx,
+                    bias_init=bias_init,
                     use_bias=True,
                 )
             )
         w_xs.append(
             nn.Dense(
                 1,
-                kernel_init=self.init_fn(self.init_std),
-                bias_init=self.init_fn(self.init_std),
+                kernel_init=kernel_init_wx,
+                bias_init=bias_init,
                 use_bias=True,
             )
         )
@@ -136,7 +143,9 @@ class ICNN(nn.Module):
     @nn.compact
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         """Apply ICNN module."""
-        z = self.act_fn(self.w_xs[0](x))
+        z = self.w_xs[0](x)
+        if not self.first_quadratic_term:
+            z = self.act_fn(z)
         if self.first_quadratic:
             z = jnp.multiply(z, z)
         for Wz, Wx in zip(self.w_zs[:-1], self.w_xs[1:-1]):
@@ -146,4 +155,4 @@ class ICNN(nn.Module):
             L = self.param("L", nn.initializers.lecun_normal(), (self.quad_rank, x.shape[-1]))
             quad = x.dot(L.transpose().dot(L)).dot(x.transpose())
             y += quad
-        return jnp.mean(y, axis=-1)
+        return y.squeeze()
