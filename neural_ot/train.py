@@ -31,7 +31,7 @@ def config():
 class ExperimentWrapper:
     """A simple wrapper around a sacred experiment, making use of sacred's captured functions with prefixes."""
 
-    @ex.capture(prefix="seml")
+    @ex.capture(prefix="init")
     def __init__(self, exp_name: str):
         # always use seed 0 for reprodicibility
         logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -85,9 +85,19 @@ class ExperimentWrapper:
         else:
             raise ValueError(f"Unknown activation: {activation}")
         if model_type == "icnn":
+            if model_params["gaussian_init"] is True:
+                logging.info("Using gaussian initialization")
+                self.ckpt_dir += "/gaussian_init"
+                samples_source = self.trainloader_source(key=None, full_dataset=True)
+                samples_target = self.trainloader_target(key=None, full_dataset=True)
+                gaussian_map_g = [samples_source, samples_target]
+                gaussian_map_f = [samples_target, samples_source]
+            else:
+                gaussian_map_g = None
+                gaussian_map_f = None
             # for now use the same architecture for f & g
-            self.neural_f = ICNN(act_fn=activation, **model_params)
-            self.neural_g = ICNN(act_fn=activation, **model_params)
+            self.neural_f = ICNN(act_fn=activation, gaussian_map=gaussian_map_f, **model_params)
+            self.neural_g = ICNN(act_fn=activation, gaussian_map=gaussian_map_g, **model_params)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
