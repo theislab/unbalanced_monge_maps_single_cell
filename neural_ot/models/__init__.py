@@ -1,1 +1,2 @@
-from .icnn import get_icnn
+from .icnn import ICNN
+from .neural_dual import NeuralDual

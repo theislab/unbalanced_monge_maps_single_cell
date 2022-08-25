@@ -1,6 +1,5 @@
 name: neural-ot
 channels:
-    - pytorch
     - conda-forge
     - bioconda
 dependencies:
@@ -8,18 +7,26 @@ dependencies:
     - cmake
     - numpy
     - pandas
+    - matplotlib
     - scipy
-    - cudatoolkit-dev
-    - pytorch
-    - jax
+    - scikit-learn
+    - jaxlib=0.3.14=cuda112py310h3b68594_203
+    - jax=0.3.14
+    - tensorflow
     - flax
     - optax
     - h5py
     - numba
     - anndata
     - scanpy
+    - scvelo
+    - umap-learn
+    - mpi4py
+    - petsc4py
+    - slepc4py
+    - cellrank
+    - tbb=2020.2
     - jupyter
-    - tensorflow
     - wandb
     - pip
     - pip:
