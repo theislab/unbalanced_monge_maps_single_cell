@@ -299,14 +299,14 @@ class NeuralDualSolver:
                     flat_g_params**2
                 )
                 # compute wasserstein distance
-                dist = -loss_f - jnp.mean(s_dot_grad_g_s) + jnp.mean(0.5 * t_sq + 0.5 * s_sq)
+                dist = 2 * (-loss_f - jnp.mean(s_dot_grad_g_s) + jnp.mean(0.5 * t_sq + 0.5 * s_sq))
             else:
                 # compute loss
                 loss_f = jnp.mean(f_t - f_grad_g_s)
                 loss_g = jnp.mean(f_grad_g_s - s_dot_grad_g_s)
                 loss = jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s)
                 # compute wasserstein distance
-                dist = loss + jnp.mean(0.5 * t_sq + 0.5 * s_sq)
+                dist = 2 * (loss + jnp.mean(0.5 * t_sq + 0.5 * s_sq))
                 flat_f_params, _ = jax.flatten_util.ravel_pytree(params_f)
                 flat_g_params, _ = jax.flatten_util.ravel_pytree(params_g)
                 loss += self.weight_penalty * jnp.mean(flat_f_params**2) + self.weight_penalty * jnp.mean(
