@@ -1,0 +1,56 @@
+seml:
+    executable: train.py
+    name: pancreas_1415_makkuva_gaussinit
+    output_dir: runs/logs
+    project_root_dir: ../..
+
+slurm:
+    sbatch_options_template: GPU
+
+fixed:
+    init:
+        exp_name: pancreas_1415_makkuva_gaussinit
+    data:
+        target_type: anndata
+        source_type: anndata
+        source_params:
+            use_pca: True
+            batch_size: 1024
+            adata_path: data/pancreas/pancreas_14.5.h5ad
+        target_params:
+            use_pca: True
+            batch_size: 1024
+            adata_path: data/pancreas/pancreas_15.5.h5ad
+    model:
+        model_type: icnn
+        activation: leaky_relu
+        model_params:
+            dim_hidden: [64, 64, 64, 64]
+            pos_weights: False
+            first_quadratic: True
+            first_quadratic_term: False
+            last_quadratic_term: False
+            closed_form_init: False
+
+    optimization:
+        optimizer_type: adam
+        optimizer_params:
+            learning_rate: 0.001
+            beta_one: 0.5
+            beta_two: 0.9
+            clip_grad_norm: 1.0
+            weight_decay: 0.0
+    solver:
+        solver_type: makkuva
+        solver_params:
+            input_dim: 50
+            wandb_logging: False
+            pos_weights: False
+            beta: 1.0
+            pretrain: True
+            metric: sinkhorn
+    training.training_params:
+        iterations: 5000
+        inner_iters: 10
+        valid_freq: 100
+        log_freq: 1
