@@ -72,7 +72,7 @@ class ExperimentWrapper:
             raise ValueError(f"Unknown target type: {target_type}")
 
     @ex.capture(prefix="model")
-    def init_model(self, model_type: str, activation: str, model_params: dict):
+    def init_model(self, model_type: str, activation: str, model_params: dict, gaussian_init: bool = False):
         """Create neural f & g."""
         logging.info(f"Using activation function: {activation}")
         self.ckpt_dir += f"/{activation}"
@@ -85,7 +85,7 @@ class ExperimentWrapper:
         else:
             raise ValueError(f"Unknown activation: {activation}")
         if model_type == "icnn":
-            if model_params["gaussian_init"] is True:
+            if gaussian_init:
                 logging.info("Using gaussian initialization")
                 self.ckpt_dir += "/gaussian_init"
                 samples_source = self.trainloader_source(key=None, full_dataset=True)
