@@ -47,7 +47,7 @@ class ICNN(nn.Module):
             kernel_init_wx_pot = lambda *args, **kwargs: factor
             bias_init_wx_pot = lambda *args, **kwargs: mean
         else:
-            kernel_inits_wz = self.init_fn(self.init_std)
+            kernel_inits_wz = [self.init_fn(self.init_std) for _ in range(num_hidden + 1)]
             kernel_init_wx_pot = nn.initializers.lecun_normal()
             bias_init_wx_pot = nn.initializers.zeros
 
@@ -139,6 +139,7 @@ class ICNN(nn.Module):
     @nn.compact
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         """Apply ICNN module."""
+        assert x.ndim == 1
         z = self.w_xs[0](x)
         if not self.first_quadratic_term:
             z = self.act_fn(z)
@@ -148,7 +149,7 @@ class ICNN(nn.Module):
             z = self.act_fn(jnp.add(Wz(z), Wx(x)))
         y = jnp.add(self.w_zs[-1](z), self.w_xs[-1](x))
         if self.last_quadratic_term:
-            L = self.param("L", nn.initializers.lecun_normal(), (self.quad_rank, x.shape[-1]))
+            L = self.param("L", nn.initializers.lecun_normal(), (self.quad_rank, x.shape[0]))
             quad = x.dot(L.transpose().dot(L)).dot(x.transpose())
             y += quad
-        return y.squeeze()
+        return jnp.squeeze(y)
