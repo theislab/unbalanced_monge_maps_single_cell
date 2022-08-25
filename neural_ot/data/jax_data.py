@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -7,21 +7,25 @@ import jax.numpy as jnp
 
 @dataclass
 class JaxSampler:
-    """Data sampler for Jax."""
+    """Data sampler for Jax with optional weighting."""
 
-    data: jnp.float64
+    data: jnp.ndarray
     batch_size: int = 128
-    shuffle: bool = True
-    drop_last: bool = True
+    weighting: Optional[jnp.ndarray] = None
 
     def __post_init__(self):
-        self.data_length = len(self.data)
+        # Weighting needs to have the same length as data.
+        if self.weighting is not None:
+            assert self.data.shape[0] == self.weighting.shape[0]
 
         @jax.jit
         def _sample(key: jax.random.KeyArray) -> jnp.ndarray:
             """Jitted sample function."""
-            indeces = jax.random.randint(key, shape=[self.batch_size], minval=0, maxval=self.data_length)
-            return self.data[indeces]
+            if self.weighting is None:
+                indeces = jax.random.randint(key, shape=[self.batch_size], minval=0, maxval=self.data_length)
+                return self.data[indeces]
+            else:
+                return jax.random.choice(key, self.data, shape=[self.batch_size], p=self.weighting)
 
         self._sample = _sample
 
