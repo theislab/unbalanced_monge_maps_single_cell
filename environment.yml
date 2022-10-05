@@ -10,7 +10,7 @@ dependencies:
     - matplotlib
     - scipy
     - scikit-learn
-    - jaxlib=0.3.14=cuda112py310h3b68594_203
+    - jaxlib=0.3.14=cuda112py39h867d1ad_203
     - jax=0.3.14
     - tensorflow
     - flax
@@ -29,6 +29,5 @@ dependencies:
     - wandb
     - pip
     - pip:
-          - ott-jax
           - git+https://github.com/theislab/cellrank@master
           - tueplots
