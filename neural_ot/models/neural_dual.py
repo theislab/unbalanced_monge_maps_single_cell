@@ -36,6 +36,11 @@ class NeuralDual:
         return jax.vmap(lambda x: jax.grad(self.g.apply_fn, argnums=1)({"params": self.g.params}, x))(data)
 
     @jax.jit
+    def potentia_fn(self) -> jnp.ndarray:
+        """Compute potential."""
+        return lambda y, x: 1 / 2 * jnp.linalg.norm(x, axis=1) - self.g.apply_fn({"params": y}, x)
+
+    @jax.jit
     def transport_with_grad(self, params: jnp.ndarray, data: jnp.ndarray) -> jnp.ndarray:
         """Transport with explicit params needed for gradient computation."""
         return jax.vmap(lambda x: jax.grad(self.g.apply_fn, argnums=1)({"params": params}, x))(data)
