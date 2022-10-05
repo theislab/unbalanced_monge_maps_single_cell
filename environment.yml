@@ -24,10 +24,11 @@ dependencies:
     - mpi4py
     - petsc4py
     - slepc4py
-    - cellrank
     - tbb=2020.2
     - jupyter
     - wandb
     - pip
     - pip:
           - ott-jax
+          - git+https://github.com/theislab/cellrank@master
+          - tueplots
