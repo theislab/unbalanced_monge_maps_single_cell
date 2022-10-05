@@ -1,5 +1,6 @@
 name: neural-ot
 channels:
+    - nvidia
     - conda-forge
     - bioconda
 dependencies:
@@ -10,11 +11,13 @@ dependencies:
     - matplotlib
     - scipy
     - scikit-learn
+    - cudatoolkit=11.4.1
+    - cuda-nvcc
     - jaxlib=0.3.14=cuda112py39h867d1ad_203
     - jax=0.3.14
     - tensorflow
-    - flax
-    - optax
+    - flax=0.5.2
+    - optax=0.1.3
     - h5py
     - numba
     - anndata
@@ -29,5 +32,6 @@ dependencies:
     - wandb
     - pip
     - pip:
-          - git+https://github.com/theislab/cellrank@master
+          - ott-jax==0.2.8
+          - git+https://githu b.com/theislab/cellrank@master
           - tueplots
