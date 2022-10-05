@@ -1,17 +1,19 @@
+import functools
 import logging
 import warnings
-from typing import List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import wandb
-from data import JaxSampler
 from flax.core import freeze
 from flax.training import checkpoints, train_state
-from models import NeuralDual
 from optax._src import base
-from utils import mmd_linear, mmd_rbf, sinkhorn_loss
+
+from neural_ot.data import JaxSampler, MatchingPairSampler
+from neural_ot.models import NeuralDual
+from neural_ot.utils import mmd_linear, mmd_rbf, sinkhorn_loss
 
 
 class NeuralDualSolver:
@@ -39,8 +41,8 @@ class NeuralDualSolver:
         beta: int = 1.0,
         use_wtwo_gn: bool = False,
         cycle_loss_weight: Optional[float] = None,
+        discrepancy_loss_weight: Optional[float] = None,
         pretrain: bool = True,
-        weight_penalty: float = 0.0,
         metric: str = "sinkhorn",
         save_ckpt: bool = True,
         ckpt_dir: str = "runs/test_run",
@@ -56,9 +58,10 @@ class NeuralDualSolver:
             assert cycle_loss_weight is not None
             logging.info(f"Using cycle loss weight: {cycle_loss_weight}")
             self.cycle_loss_weight = cycle_loss_weight
+        self.discrepancy_loss_weight = discrepancy_loss_weight
+        if discrepancy_loss_weight is not None:
+            logging.info(f"Using discrepancy loss weight: {discrepancy_loss_weight}")
         self.pretrain = pretrain
-        self.weight_penalty = weight_penalty
-        logging.info(f"Using weight penalty: {weight_penalty}")
         self.metric = metric
         logging.info(f"Using metric: {self.metric}")
         self.save_ckpt = save_ckpt
@@ -106,8 +109,9 @@ class NeuralDualSolver:
 
     def __call__(
         self,
-        trainloader_source: Union[JaxSampler, List[JaxSampler]],
-        trainloader_target: Union[JaxSampler, List[JaxSampler]],
+        trainloader: Union[
+            Tuple[JaxSampler, JaxSampler], Tuple[List[JaxSampler], List[JaxSampler]], MatchingPairSampler
+        ],
         validloader_source: JaxSampler,
         validloader_target: JaxSampler,
         testloader_source: JaxSampler,
@@ -117,6 +121,7 @@ class NeuralDualSolver:
         valid_freq: int = 5,
         log_freq: int = 1,
         pair_loaders: bool = False,
+        matching_loaders: bool = False,
     ) -> "NeuralDual":
         """Call the training script, and return the trained neural dual."""
         self.iterations = iterations
@@ -124,8 +129,9 @@ class NeuralDualSolver:
         self.valid_freq = valid_freq
         self.log_freq = log_freq
         self.pair_loaders = pair_loaders
+        self.matching_loaders = matching_loaders
         if self.pair_loaders:
-            assert len(trainloader_source) == len(trainloader_target)
+            assert len(trainloader[0]) == len(trainloader[1])
         # create training step
         self.train_step = self.get_train_step()
         # create valid & test step
@@ -133,20 +139,16 @@ class NeuralDualSolver:
         self.test_step = self.get_eval_step(testloader_source, testloader_target, split="test")
 
         # train neural dual
-        self.train_neuraldual(
-            trainloader_source,
-            trainloader_target,
-        )
+        self.train_neuraldual(trainloader)
         return self.neural_dual
 
-    def pretrain_identity(self, num_iter: int = 1501, scale: int = 3):
+    def pretrain_identity(self, num_iter: int = 15001, scale: int = 3):
         """Pretrain the neural networks to identity."""
 
         @jax.jit
         def pretrain_loss_fn(params: jnp.ndarray, data: jnp.ndarray) -> jnp.ndarray:
-            grad_g_data = self.neural_dual.transport_with_grad(params, data)
-            flat_g_params, _ = jax.flatten_util.ravel_pytree(params)
-            loss = ((grad_g_data - data) ** 2).sum(axis=1).mean() + self.weight_penalty * (flat_g_params**2).mean()
+            grad_f_data = self.neural_dual.inverse_transport_with_grad(params, data)
+            loss = ((grad_f_data - data) ** 2).sum(axis=1).mean()
             return loss
 
         @jax.jit
@@ -170,8 +172,9 @@ class NeuralDualSolver:
 
     def train_neuraldual(
         self,
-        trainloader_source: Union[JaxSampler, List[JaxSampler]],
-        trainloader_target: Union[JaxSampler, List[JaxSampler]],
+        trainloader: Union[
+            Tuple[JaxSampler, JaxSampler], Tuple[List[JaxSampler], List[JaxSampler]], MatchingPairSampler
+        ],
     ):
         """Train the neural dual and call evaluation script."""
         # define dict to contain source and target batch
@@ -180,27 +183,37 @@ class NeuralDualSolver:
         # set sink dist dictionaries (only needs to be computed once for each split)
         self.sink_dist = {"val": None, "test": None}
         self.best_loss = jnp.inf
+        total_steps = self.iterations * self.inner_iters
         if self.pair_loaders:
-            trainloaders_source = trainloader_source
-            trainloaders_target = trainloader_target
+            trainloaders_source = trainloader[0]
+            trainloaders_target = trainloader[1]
+        elif not self.matching_loaders:
+            trainloader_source = trainloader[0]
+            trainloader_target = trainloader[1]
 
         for iteration in range(self.iterations):
             # execute training steps
-            # get train batch from source distribution
             if self.pair_loaders:
                 loader_key, self.key = jax.random.split(self.key, 2)
-                index = jax.random.randint(loader_key, shape=[1], minval=0, maxval=self.trainloader_source)
+                index = jax.random.randint(loader_key, shape=[1], minval=0, maxval=len(self.trainloader_source))
                 trainloader_source = trainloaders_source[index[0]]
                 trainloader_target = trainloaders_target[index[0]]
-            source_key, self.key = jax.random.split(self.key, 2)
-            batch["source"] = trainloader_source(source_key)
+            if not self.matching_loaders:
+                target_key, self.key = jax.random.split(self.key, 2)
+                # get train batch from target distribution
+                batch["target"] = trainloader_target(target_key)
             # set gradients of f to zero
             grads_f_accumulated = jax.jit(jax.grad(lambda _: 0.0))(self.neural_dual.f.params)
 
             for inner_iter in range(self.inner_iters):
                 # get train batch from target distribution
-                target_key, self.key = jax.random.split(self.key, 2)
-                batch["target"] = trainloader_target(target_key)
+                source_key, self.key = jax.random.split(self.key, 2)
+                if self.matching_loaders:
+                    # get train batch
+                    batch["source"], batch["target"] = trainloader(source_key)
+                else:
+                    # get train batch from source distribution
+                    batch["source"] = trainloader_source(source_key)
                 # train step for potential g
                 (
                     self.neural_dual.state_g,
@@ -220,7 +233,7 @@ class NeuralDualSolver:
                 # log loss and w_dist
                 if (iteration * self.inner_iters + inner_iter) % self.log_freq == 0:
                     logging.info(
-                        f"Step {iteration * self.inner_iters + inner_iter}: "
+                        f"Step {iteration * self.inner_iters + inner_iter}/{total_steps}: "
                         f"Loss: {loss}, W_dist: {w_dist}, Penalty: {penalty}, Loss_f: {loss_f}, Loss_g: {loss_g}"
                     )
                     if self.wandb_logging:
@@ -293,11 +306,6 @@ class NeuralDualSolver:
                 )
                 # compute total loss
                 loss = loss_f + self.cycle_loss_weight * loss_g
-                flat_f_params, _ = jax.flatten_util.ravel_pytree(params_f)
-                flat_g_params, _ = jax.flatten_util.ravel_pytree(params_g)
-                loss += self.weight_penalty * jnp.mean(flat_f_params**2) + self.weight_penalty * jnp.mean(
-                    flat_g_params**2
-                )
                 # compute wasserstein distance
                 dist = 2 * (-loss_f - jnp.mean(s_dot_grad_g_s) + jnp.mean(0.5 * t_sq + 0.5 * s_sq))
             else:
@@ -307,11 +315,12 @@ class NeuralDualSolver:
                 loss = jnp.mean(f_grad_g_s - f_t - s_dot_grad_g_s)
                 # compute wasserstein distance
                 dist = 2 * (loss + jnp.mean(0.5 * t_sq + 0.5 * s_sq))
-                flat_f_params, _ = jax.flatten_util.ravel_pytree(params_f)
-                flat_g_params, _ = jax.flatten_util.ravel_pytree(params_g)
-                loss += self.weight_penalty * jnp.mean(flat_f_params**2) + self.weight_penalty * jnp.mean(
-                    flat_g_params**2
+            if self.discrepancy_loss_weight is not None:
+                grad_f_t = self.neural_dual.inverse_transport_with_grad(params_f, batch["target"])
+                discrepancy_loss = jnp.mean((grad_g_s - batch["target"]) ** 2) + jnp.mean(
+                    (grad_f_t - batch["source"]) ** 2
                 )
+                loss += self.discrepancy_loss_weight * discrepancy_loss
 
             if not self.use_wtwo_gn and not self.pos_weights:
                 penalty = self.beta * self.penalize_weights_icnn(params_g)
@@ -320,16 +329,18 @@ class NeuralDualSolver:
                 penalty = 0
             return loss, (dist, loss_f, loss_g, penalty)
 
-        @jax.jit
+        @functools.partial(jax.jit, static_argnums=3)
         def step_fn(
             state_f: train_state.TrainState,
             state_g: train_state.TrainState,
             batch: jnp.ndarray,
+            learning_rate_fn: Callable[[int], float],
         ):
             """Step function for training."""
             grad_fn = jax.value_and_grad(loss_fn, argnums=(0, 1), has_aux=True)
             # compute loss and gradients
             (loss, (dist, loss_f, loss_g, penalty)), (grads_f, grads_g) = grad_fn(state_f.params, state_g.params, batch)
+            learning_rate_fn(state_g.step)
             # update state and return training stats
             return (
                 state_g.apply_gradients(grads=grads_g),
