@@ -47,7 +47,8 @@ class MatchingPairSampler:
     batch_size: int = 128
     tau_a: float = 1.0
     tau_b: float = 1.0
-    epsilon: float = 1.0
+    epsilon: float = 1e-1
+    matching: bool = True
     weighting: Optional[jnp.ndarray] = None
 
     def __post_init__(self):
@@ -68,10 +69,20 @@ class MatchingPairSampler:
             batch_target = self.data_target[
                 jax.random.randint(key_target, shape=[self.batch_size], minval=0, maxval=self.length_target)
             ]
+            if not self.matching:
+                return batch_source, batch_target
             # solve regularized ot between batch_source and batch_target
-            geom = ott.geometry.pointcloud.PointCloud(batch_source, batch_target, epsilon=self.epsilon)
+            geom = ott.geometry.pointcloud.PointCloud(
+                batch_source, batch_target, epsilon=self.epsilon, scale_cost="mean"
+            )
             out = ott.core.sinkhorn.sinkhorn(
-                geom, self.ott_scaling, self.ott_scaling, tau_a=self.tau_a, tau_b=self.tau_b, jit=False
+                geom,
+                self.ott_scaling,
+                self.ott_scaling,
+                tau_a=self.tau_a,
+                tau_b=self.tau_b,
+                jit=False,
+                max_iterations=1e7,
             )
             # get flattened log transition matrix
             transition_matrix = jnp.log(geom.transport_from_potentials(out.f, out.g).flatten())

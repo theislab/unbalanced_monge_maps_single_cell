@@ -1,6 +1,6 @@
 seml:
     executable: train.py
-    name: pancreas_1415_makkuva_pretrain
+    name: pancreas_1415_pmm+gr
     output_dir: runs/logs
     project_root_dir: ../..
 
@@ -9,33 +9,35 @@ slurm:
 
 fixed:
     init:
-        exp_name: pancreas_1415_makkuva_pretrain
+        exp_name: pancreas_1415_pmm+gr
     data:
-        target_type: anndata
-        source_type: anndata
+        target_type: anndata_paired
+        source_type: anndata_paired
         source_params:
             use_pca: True
             batch_size: 1024
-            adata_path: data/pancreas/pancreas_14.5.h5ad
+            adata_path_source: data/pancreas/day_14.5_growth_rate.h5ad
+            adata_path_target: data/pancreas/day_15.5_growth_rate.h5ad
+            growth_rate_weighting: 4
+            matching: False
         target_params:
             use_pca: True
             batch_size: 1024
-            adata_path: data/pancreas/pancreas_15.5.h5ad
     model:
         model_type: icnn
         activation: leaky_relu
         model_params:
             dim_hidden: [64, 64, 64, 64]
             pos_weights: False
-            first_quadratic: False
-            first_quadratic_term: True
+            first_quadratic: True
+            first_quadratic_term: False
             last_quadratic_term: False
-            closed_form_init: True
+            closed_form_init: False
             dim_data: 50
-        gaussian_init: True
 
     optimization:
         optimizer_type: adam
+        schedule: False
         optimizer_params:
             learning_rate: 0.001
             beta_one: 0.5
@@ -46,13 +48,14 @@ fixed:
         solver_type: makkuva
         solver_params:
             input_dim: 50
-            wandb_logging: False
+            wandb_logging: True
             pos_weights: False
             beta: 1.0
-            pretrain: False
-            metric: sinkhorn
+            pretrain: True
+            metric: sinkhorn_forward
     training.training_params:
-        iterations: 5000
+        iterations: 15000
         inner_iters: 10
-        valid_freq: 100
+        valid_freq: 250
         log_freq: 1
+        matching_loaders: True

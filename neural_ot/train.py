@@ -107,21 +107,23 @@ class ExperimentWrapper:
         logging.info(f"Using optimizer: {optimizer_type}")
         if optimizer_type == "adam":
             # for now use the same optimizer params for f & g
-            self.optimizer_f = optax.adam(
-                learning_rate=optimizer_params["learning_rate"],
-                b1=optimizer_params["beta_one"],
-                b2=optimizer_params["beta_two"],
-            )
             self.optimizer_f = optax.chain(
-                optax.clip_by_global_norm(optimizer_params["clip_grad_norm"]), self.optimizer_f
-            )
-            self.optimizer_g = optax.adam(
-                learning_rate=optimizer_params["learning_rate"],
-                b1=optimizer_params["beta_one"],
-                b2=optimizer_params["beta_two"],
+                optax.clip_by_global_norm(optimizer_params["clip_grad_norm"]),
+                optax.adamw(
+                    learning_rate=optimizer_params["learning_rate"],
+                    b1=optimizer_params["beta_one"],
+                    b2=optimizer_params["beta_two"],
+                    weight_decay=optimizer_params["weight_decay"],
+                ),
             )
             self.optimizer_g = optax.chain(
-                optax.clip_by_global_norm(optimizer_params["clip_grad_norm"]), self.optimizer_g
+                optax.clip_by_global_norm(optimizer_params["clip_grad_norm"]),
+                optax.adamw(
+                    learning_rate=optimizer_params["learning_rate"],
+                    b1=optimizer_params["beta_one"],
+                    b2=optimizer_params["beta_two"],
+                    weight_decay=optimizer_params["weight_decay"],
+                ),
             )
         else:
             raise ValueError(f"Unknown optimzer type: {optimizer_type}")

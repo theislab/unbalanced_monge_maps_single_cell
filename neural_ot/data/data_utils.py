@@ -246,7 +246,7 @@ def get_paired_anndata_samplers(
     tau_a: float = 1.0,
     tau_b: float = 1.0,
     epsilon: float = 1.0,
-    growth_rate_weighting: bool = False,
+    growth_rate_weighting: Optional[int] = None,
 ) -> Tuple[JaxSampler, JaxSampler, JaxSampler]:
     """Load AnnData object, split data and return a tuple of data samplers."""
     adata_source = sc.read(adata_path_source, backed="r+", cache=True)
@@ -257,11 +257,17 @@ def get_paired_anndata_samplers(
     else:
         data_source = jnp.array(data_source.X.toarray())
         data_target = jnp.array(data_target.X.toarray())
-    if growth_rate_weighting:
-        # use exp proliferation weighting
-        weighting = jnp.array(adata_source.obs["scaled_growth_rate"])
-    else:
+    if growth_rate_weighting is None:
         weighting = None
+    elif growth_rate_weighting == 1:
+        # use exp proliferation weighting
+        weighting = jnp.array(adata_source.obs["growth_rate"])
+    elif growth_rate_weighting == 2:
+        weighting = jnp.array(adata_source.obs["scaled_growth_rate"])
+    elif growth_rate_weighting == 3:
+        weighting = jnp.array(adata_source.obs["scaled3_growth_rate"])
+    elif growth_rate_weighting == 4:
+        weighting = jnp.array(adata_source.obs["scaled4_growth_rate"])
     # create samplers
     paired_sampler = MatchingPairSampler(
         data_source, data_target, batch_size=batch_size, tau_a=tau_a, tau_b=tau_b, epsilon=epsilon, weighting=weighting
