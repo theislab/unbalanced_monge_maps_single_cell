@@ -4,8 +4,7 @@ import flax
 import jax
 import jax.numpy as jnp
 from flax.training import checkpoints, train_state
-
-from neural_ot.models import ICNN, NeuralDual
+from models import ICNN, NeuralDual
 
 
 def get_neural_dual_from_ckpt(

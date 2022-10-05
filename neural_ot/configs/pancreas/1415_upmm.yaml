@@ -1,8 +1,8 @@
 seml:
-    executable: neural_ot/train.py
+    executable: train.py
     name: pancreas_1415_upmm_tau0.85
-    output_dir: neural_ot/runs/logs
-    project_root_dir: ../../..
+    output_dir: runs/logs
+    project_root_dir: ../..
 
 slurm:
     sbatch_options_template: GPU

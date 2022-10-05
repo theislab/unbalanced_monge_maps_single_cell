@@ -7,13 +7,12 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import wandb
+from data import JaxSampler, MatchingPairSampler
 from flax.core import freeze
 from flax.training import checkpoints, train_state
+from models import NeuralDual
 from optax._src import base
-
-from neural_ot.data import JaxSampler, MatchingPairSampler
-from neural_ot.models import NeuralDual
-from neural_ot.utils import mmd_linear, mmd_rbf, sinkhorn_loss
+from utils import mmd_linear, mmd_rbf, sinkhorn_loss
 
 
 class NeuralDualSolver:
