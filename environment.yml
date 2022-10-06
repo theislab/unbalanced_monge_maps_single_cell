@@ -33,5 +33,5 @@ dependencies:
     - pip
     - pip:
           - ott-jax==0.2.8
-          - git+https://githu b.com/theislab/cellrank@master
+          - git+https://github.com/theislab/cellrank@master
           - tueplots
